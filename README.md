@@ -13,10 +13,6 @@
 
 <br />
 
-### Demo Screeshots
-
-![Hykaa Desktop Demo](./readme-images/desktop.png "Desktop Demo")
-
 ### Prerequisites
 
 Before you begin, ensure you have met the following requirements:
