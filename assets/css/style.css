@@ -359,7 +359,6 @@ body {
 \*-----------------------------------*/
 
 .header .input-wrapper,
-.header-action-btn:not(:first-child),
 .navbar { display: none; }
 
 .header {
@@ -424,6 +423,12 @@ body {
 .nav-open-btn .line-1 { width: 15px; }
 
 .nav-open-btn .line-3 { width: 18px; }
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
 
 .header-action-btn {
   font-size: 28px;

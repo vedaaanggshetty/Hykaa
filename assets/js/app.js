@@ -1,37 +1,28 @@
 'use strict';
 
 /* ============================================================
-   PRODUCT DATA
+   API CONFIGURATION
    ============================================================ */
-const PRODUCTS = [
-  { id: 1,  name: 'Facial Cleanser',               price: 29.00, oldPrice: 39.00, img: './assets/images/product-01.jpg', badge: '-26%', rating: 5, reviews: 5170, category: 'cleanser' },
-  { id: 2,  name: 'Bio-shroom Rejuvenating Serum', price: 29.00, oldPrice: null,  img: './assets/images/product-02.jpg', badge: null,   rating: 5, reviews: 5170, category: 'serum' },
-  { id: 3,  name: 'Coffee Bean Caffeine Eye Cream',price: 29.00, oldPrice: null,  img: './assets/images/product-03.jpg', badge: null,   rating: 5, reviews: 5170, category: 'cream' },
-  { id: 4,  name: 'Facial Cleanser Pro',           price: 29.00, oldPrice: null,  img: './assets/images/product-04.jpg', badge: null,   rating: 5, reviews: 5170, category: 'cleanser' },
-  { id: 5,  name: 'Coffee Bean Eye Cream',         price: 29.00, oldPrice: 39.00, img: './assets/images/product-05.jpg', badge: '-26%', rating: 5, reviews: 5170, category: 'cream' },
-  { id: 6,  name: 'Facial Cleanser Lite',          price: 29.00, oldPrice: null,  img: './assets/images/product-06.jpg', badge: null,   rating: 5, reviews: 5170, category: 'cleanser' },
-  { id: 7,  name: 'Vitamin C Bright Serum',        price: 19.00, oldPrice: 29.00, img: './assets/images/product-07.jpg', badge: '-34%', rating: 5, reviews: 5170, category: 'serum' },
-  { id: 8,  name: 'Bio-shroom Renew Serum',        price: 19.00, oldPrice: null,  img: './assets/images/product-08.jpg', badge: null,   rating: 5, reviews: 5170, category: 'serum' },
-  { id: 9,  name: 'Rose Glow Moisturizer',         price: 22.00, oldPrice: null,  img: './assets/images/product-09.jpg', badge: null,   rating: 5, reviews: 3200, category: 'moisturizer' },
-  { id: 10, name: 'Night Repair Cream',            price: 24.00, oldPrice: null,  img: './assets/images/product-10.jpg', badge: null,   rating: 5, reviews: 2800, category: 'cream' },
-  { id: 11, name: 'Hydra-Boost Toner',             price: 18.00, oldPrice: null,  img: './assets/images/product-11.jpg', badge: null,   rating: 5, reviews: 1900, category: 'toner' },
-  { id: 15, name: 'Soothing Aloe Gel',             price: 15.00, oldPrice: null,  img: './assets/images/product-15.jpg', badge: null,   rating: 5, reviews: 1500, category: 'gel' },
-  { id: 16, name: 'SPF 50 Sunscreen',              price: 21.00, oldPrice: null,  img: './assets/images/product-16.jpg', badge: null,   rating: 5, reviews: 4100, category: 'sunscreen' },
-  { id: 17, name: 'Exfoliating Scrub',             price: 17.00, oldPrice: 22.00, img: './assets/images/product-17.jpg', badge: '-22%', rating: 5, reviews: 2300, category: 'scrub' },
-];
+const API_BASE = '/api';
 
 /* ============================================================
-   COUPON CODES
+   API HELPER
    ============================================================ */
-const COUPONS = {
-  'HYKAA10': 0.10,  // 10% off
-  'SKINCARE20': 0.20, // 20% off
-  'WELCOME15': 0.15,  // 15% off
-};
+async function api(endpoint, options = {}) {
+  const token = localStorage.getItem('hykaa_token');
+  const headers = { 'Content-Type': 'application/json', ...options.headers };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'API error');
+  return data;
+}
 
 /* ============================================================
-   STATE  (localStorage-backed)
+   STATE  (localStorage-backed, syncs with server when logged in)
    ============================================================ */
+let PRODUCTS = [];
 let cart     = JSON.parse(localStorage.getItem('hykaa_cart'))     || [];
 let wishlist = JSON.parse(localStorage.getItem('hykaa_wishlist')) || [];
 let user     = JSON.parse(localStorage.getItem('hykaa_user'))     || null;
@@ -42,6 +33,48 @@ const save = () => {
   localStorage.setItem('hykaa_cart',     JSON.stringify(cart));
   localStorage.setItem('hykaa_wishlist', JSON.stringify(wishlist));
 };
+
+/* ============================================================
+   LOAD PRODUCTS FROM API
+   ============================================================ */
+async function loadProducts() {
+  try {
+    PRODUCTS = await api('/products');
+    renderProductCards('all');
+    initFilterTabs();
+    updateWishlistButtons();
+  } catch (err) {
+    console.error('Failed to load products from API, using empty list:', err.message);
+    PRODUCTS = [];
+  }
+}
+
+/* ============================================================
+   SYNC CART & WISHLIST WITH SERVER (when logged in)
+   ============================================================ */
+async function syncCartFromServer() {
+  if (!localStorage.getItem('hykaa_token')) return;
+  try {
+    cart = await api('/cart');
+    save();
+    updateCartUI();
+    renderCartDrawer();
+  } catch (err) {
+    console.error('Failed to sync cart:', err.message);
+  }
+}
+
+async function syncWishlistFromServer() {
+  if (!localStorage.getItem('hykaa_token')) return;
+  try {
+    wishlist = await api('/wishlist');
+    save();
+    updateCartUI();
+    updateWishlistButtons();
+  } catch (err) {
+    console.error('Failed to sync wishlist:', err.message);
+  }
+}
 
 /* ============================================================
    TOAST
@@ -60,25 +93,75 @@ function toast(msg, type = 'success') {
 /* ============================================================
    CART
    ============================================================ */
-function addToCart(id) {
-  const p = PRODUCTS.find(x => x.id === id);
+async function addToCart(id) {
+  const p = PRODUCTS.find(x => (x._id || x.id) === id || x.id === id);
   if (!p) return;
-  const existing = cart.find(x => x.id === id);
-  if (existing) { existing.qty++; } else { cart.push({ ...p, qty: 1 }); }
-  save(); updateCartUI(); toast(`${p.name} added to cart 🛒`);
+  const productId = p._id || p.id;
+
+  if (localStorage.getItem('hykaa_token')) {
+    try {
+      cart = await api('/cart', {
+        method: 'POST',
+        body: JSON.stringify({ productId: p._id, qty: 1 }),
+      });
+      save();
+    } catch (err) {
+      toast(err.message, 'error');
+      return;
+    }
+  } else {
+    const existing = cart.find(x => (x._id || x.id) === productId);
+    if (existing) { existing.qty++; } else { cart.push({ ...p, qty: 1 }); }
+    save();
+  }
+  updateCartUI();
+  renderCartDrawer();
+  openDrawer('cart');
+  toast(`${p.name} added to cart 🛒`);
 }
 
-function removeFromCart(id) {
-  cart = cart.filter(x => x.id !== id);
-  save(); updateCartUI(); renderCartDrawer();
+async function removeFromCart(id) {
+  if (localStorage.getItem('hykaa_token')) {
+    try {
+      await api(`/cart/${id}`, { method: 'DELETE' });
+      cart = cart.filter(x => (x._id || x.id) !== id);
+      save();
+    } catch (err) {
+      toast(err.message, 'error');
+      return;
+    }
+  } else {
+    cart = cart.filter(x => (x._id || x.id) !== id);
+    save();
+  }
+  updateCartUI();
+  renderCartDrawer();
 }
 
-function changeQty(id, delta) {
-  const item = cart.find(x => x.id === id);
+async function changeQty(id, delta) {
+  const item = cart.find(x => (x._id || x.id) === id);
   if (!item) return;
-  item.qty += delta;
-  if (item.qty < 1) return removeFromCart(id);
-  save(); updateCartUI(); renderCartDrawer();
+  const newQty = item.qty + delta;
+  if (newQty < 1) return removeFromCart(id);
+
+  if (localStorage.getItem('hykaa_token')) {
+    try {
+      await api(`/cart/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ qty: newQty }),
+      });
+      item.qty = newQty;
+      save();
+    } catch (err) {
+      toast(err.message, 'error');
+      return;
+    }
+  } else {
+    item.qty = newQty;
+    save();
+  }
+  updateCartUI();
+  renderCartDrawer();
 }
 
 function cartTotal() { return cart.reduce((s, x) => s + x.price * x.qty, 0); }
@@ -104,37 +187,54 @@ function renderCartDrawer() {
     el.innerHTML = `<div class="empty-state"><ion-icon name="bag-handle-outline"></ion-icon><p>Your cart is empty</p></div>`;
     return;
   }
-  el.innerHTML = cart.map(item => `
+  el.innerHTML = cart.map(item => {
+    const itemId = item._id || item.id;
+    return `
     <div class="cart-item">
       <img src="${item.img}" alt="${item.name}">
       <div class="cart-item-info">
         <p class="cart-item-name">${item.name}</p>
         <p class="cart-item-price">$${(item.price * item.qty).toFixed(2)}</p>
         <div class="qty-controls">
-          <button class="qty-btn" onclick="changeQty(${item.id}, -1)">−</button>
+          <button class="qty-btn" onclick="changeQty('${itemId}', -1)">−</button>
           <span>${item.qty}</span>
-          <button class="qty-btn" onclick="changeQty(${item.id}, 1)">+</button>
+          <button class="qty-btn" onclick="changeQty('${itemId}', 1)">+</button>
         </div>
       </div>
-      <button class="cart-item-remove" onclick="removeFromCart(${item.id})"><ion-icon name="trash-outline"></ion-icon></button>
+      <button class="cart-item-remove" onclick="removeFromCart('${itemId}')"><ion-icon name="trash-outline"></ion-icon></button>
     </div>
-  `).join('');
+  `;}).join('');
   updateCartUI();
 }
 
 /* ============================================================
    WISHLIST
    ============================================================ */
-function toggleWishlist(id) {
-  const idx = wishlist.findIndex(x => x.id === id);
-  if (idx > -1) {
-    wishlist.splice(idx, 1);
-    toast('Removed from wishlist', 'info');
+async function toggleWishlist(id) {
+  if (localStorage.getItem('hykaa_token')) {
+    try {
+      const result = await api(`/wishlist/${id}`, { method: 'POST' });
+      wishlist = result.wishlist;
+      save();
+      toast(result.action === 'added' ? `Added to wishlist ★` : 'Removed from wishlist', result.action === 'added' ? 'success' : 'info');
+    } catch (err) {
+      toast(err.message, 'error');
+      return;
+    }
   } else {
-    const p = PRODUCTS.find(x => x.id === id);
-    if (p) { wishlist.push(p); toast(`${p.name} added to wishlist ★`); }
+    const p = PRODUCTS.find(x => (x._id || x.id) === id);
+    const idx = wishlist.findIndex(x => (x._id || x.id) === id);
+    if (idx > -1) {
+      wishlist.splice(idx, 1);
+      toast('Removed from wishlist', 'info');
+    } else {
+      if (p) { wishlist.push(p); toast(`${p.name} added to wishlist ★`); }
+    }
+    save();
   }
-  save(); updateCartUI(); renderWishlistDrawer(); updateWishlistButtons();
+  updateCartUI();
+  renderWishlistDrawer();
+  updateWishlistButtons();
 }
 
 function renderWishlistDrawer() {
@@ -144,23 +244,25 @@ function renderWishlistDrawer() {
     el.innerHTML = `<div class="empty-state"><ion-icon name="star-outline"></ion-icon><p>Your wishlist is empty</p></div>`;
     return;
   }
-  el.innerHTML = wishlist.map(item => `
+  el.innerHTML = wishlist.map(item => {
+    const itemId = item._id || item.id;
+    return `
     <div class="cart-item">
       <img src="${item.img}" alt="${item.name}">
       <div class="cart-item-info">
         <p class="cart-item-name">${item.name}</p>
         <p class="cart-item-price">$${item.price.toFixed(2)}</p>
-        <button class="btn btn-primary btn-sm" onclick="addToCart(${item.id}); toggleWishlist(${item.id})">Move to Cart</button>
+        <button class="btn btn-primary btn-sm" onclick="addToCart('${itemId}'); toggleWishlist('${itemId}')">Move to Cart</button>
       </div>
-      <button class="cart-item-remove" onclick="toggleWishlist(${item.id})"><ion-icon name="trash-outline"></ion-icon></button>
+      <button class="cart-item-remove" onclick="toggleWishlist('${itemId}')"><ion-icon name="trash-outline"></ion-icon></button>
     </div>
-  `).join('');
+  `;}).join('');
 }
 
 function updateWishlistButtons() {
   document.querySelectorAll('[data-wishlist-id]').forEach(btn => {
-    const id = +btn.dataset.wishlistId;
-    const inWL = wishlist.some(x => x.id === id);
+    const id = btn.dataset.wishlistId;
+    const inWL = wishlist.some(x => (x._id || x.id) === id || x.id === +id);
     const ico = btn.querySelector('ion-icon');
     if (ico) ico.setAttribute('name', inWL ? 'star' : 'star-outline');
     btn.style.color = inWL ? 'var(--hoockers-green)' : '';
@@ -176,20 +278,22 @@ function renderProductCards(filter = 'all') {
 
   const filtered = filter === 'all' ? PRODUCTS : PRODUCTS.filter(p => p.category === filter);
 
-  list.innerHTML = filtered.map(p => `
+  list.innerHTML = filtered.map(p => {
+    const pid = p._id || p.id;
+    return `
     <li class="scrollbar-item" data-category="${p.category}">
-      <div class="shop-card" style="cursor:pointer" onclick="openQuickView(${p.id})">
+      <div class="shop-card" style="cursor:pointer" onclick="openQuickView('${pid}')">
         <div class="card-banner img-holder" style="--width: 540; --height: 720;">
           <img src="${p.img}" width="540" height="720" loading="lazy" alt="${p.name}" class="img-cover">
           ${p.badge ? `<span class="badge" aria-label="${p.badge} off">${p.badge}</span>` : ''}
           <div class="card-actions">
-            <button class="action-btn" aria-label="add to cart" onclick="event.stopPropagation(); addToCart(${p.id})">
+            <button class="action-btn" aria-label="add to cart" onclick="event.stopPropagation(); addToCart('${pid}')">
               <ion-icon name="bag-handle-outline" aria-hidden="true"></ion-icon>
             </button>
-            <button class="action-btn" aria-label="add to whishlist" data-wishlist-id="${p.id}" onclick="event.stopPropagation(); toggleWishlist(${p.id})">
-              <ion-icon name="${wishlist.some(w => w.id === p.id) ? 'star' : 'star-outline'}" aria-hidden="true"></ion-icon>
+            <button class="action-btn" aria-label="add to whishlist" data-wishlist-id="${pid}" onclick="event.stopPropagation(); toggleWishlist('${pid}')">
+              <ion-icon name="${wishlist.some(w => (w._id || w.id) === pid) ? 'star' : 'star-outline'}" aria-hidden="true"></ion-icon>
             </button>
-            <button class="action-btn" aria-label="quick view" onclick="event.stopPropagation(); openQuickView(${p.id})">
+            <button class="action-btn" aria-label="quick view" onclick="event.stopPropagation(); openQuickView('${pid}')">
               <ion-icon name="eye-outline" aria-hidden="true"></ion-icon>
             </button>
           </div>
@@ -200,7 +304,7 @@ function renderProductCards(filter = 'all') {
             <span class="span">$${p.price.toFixed(2)}</span>
           </div>
           <h3>
-            <a href="#" class="card-title" onclick="event.preventDefault(); openQuickView(${p.id})">${p.name}</a>
+            <a href="#" class="card-title" onclick="event.preventDefault(); openQuickView('${pid}')">${p.name}</a>
           </h3>
           <div class="card-rating">
             <div class="rating-wrapper" aria-label="${p.rating} star rating">
@@ -211,7 +315,7 @@ function renderProductCards(filter = 'all') {
         </div>
       </div>
     </li>
-  `).join('');
+  `;}).join('');
 }
 
 /* ============================================================
@@ -231,10 +335,12 @@ function initFilterTabs() {
    QUICK VIEW MODAL
    ============================================================ */
 function openQuickView(id) {
-  const p = PRODUCTS.find(x => x.id === id);
+  const p = PRODUCTS.find(x => (x._id || x.id) === id);
   if (!p) return;
+  const pid = p._id || p.id;
   const stars = '★'.repeat(p.rating) + '☆'.repeat(5 - p.rating);
-  const inWL = wishlist.some(x => x.id === id);
+  const inWL = wishlist.some(x => (x._id || x.id) === pid);
+  const desc = p.description || 'A premium skincare formulation designed for all skin types. Made with clean, non-toxic, cruelty-free ingredients for a healthy, radiant glow.';
   document.getElementById('qv-content').innerHTML = `
     <div class="qv-grid">
       <div class="qv-image">
@@ -251,7 +357,7 @@ function openQuickView(id) {
           ${p.oldPrice ? `<del>$${p.oldPrice.toFixed(2)}</del>` : ''}
           <span class="current-price">$${p.price.toFixed(2)}</span>
         </div>
-        <p class="qv-desc">A premium skincare formulation designed for all skin types. Made with clean, non-toxic, cruelty-free ingredients for a healthy, radiant glow.</p>
+        <p class="qv-desc">${desc}</p>
         <div class="qv-qty-row">
           <label>Quantity</label>
           <div class="qty-controls">
@@ -260,9 +366,12 @@ function openQuickView(id) {
             <button class="qty-btn" id="qv-plus">+</button>
           </div>
         </div>
-        <div class="qv-actions">
-          <button class="btn btn-primary" id="qv-add-cart">Add to Cart</button>
-          <button class="btn btn-outline qv-wl-btn" id="qv-wishlist" data-wishlist-id="${p.id}">
+        <div class="qv-actions" style="display: flex; gap: 12px; margin-top: 10px;">
+          <button class="btn btn-primary" id="qv-add-cart" style="display: flex; align-items: center; gap: 10px; flex: 1; justify-content: center;">
+            <ion-icon name="bag-handle-outline"></ion-icon>
+            Add to Cart
+          </button>
+          <button class="btn btn-outline qv-wl-btn" id="qv-wishlist" data-wishlist-id="${pid}" style="display: flex; align-items: center; gap: 10px; flex: 1; justify-content: center;">
             <ion-icon name="${inWL ? 'star' : 'star-outline'}"></ion-icon>
             ${inWL ? 'Wishlisted' : 'Wishlist'}
           </button>
@@ -274,12 +383,12 @@ function openQuickView(id) {
   document.getElementById('qv-minus').onclick = () => { if (qty > 1) { qty--; document.getElementById('qv-qty').textContent = qty; } };
   document.getElementById('qv-plus').onclick  = () => { qty++; document.getElementById('qv-qty').textContent = qty; };
   document.getElementById('qv-add-cart').onclick = () => {
-    for (let i = 0; i < qty; i++) addToCart(p.id);
+    for (let i = 0; i < qty; i++) addToCart(pid);
     closeModal('qv');
   };
   document.getElementById('qv-wishlist').onclick = () => {
-    toggleWishlist(p.id);
-    const inWLnow = wishlist.some(x => x.id === p.id);
+    toggleWishlist(pid);
+    const inWLnow = wishlist.some(x => (x._id || x.id) === pid);
     document.getElementById('qv-wishlist').innerHTML = `<ion-icon name="${inWLnow ? 'star' : 'star-outline'}"></ion-icon> ${inWLnow ? 'Wishlisted' : 'Wishlist'}`;
   };
   openModal('qv');
@@ -332,38 +441,50 @@ function updateAuthBtn() {
   }
 }
 
-document.getElementById('login-form')?.addEventListener('submit', (e) => {
+document.getElementById('login-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const email = document.getElementById('login-email').value;
   const pass  = document.getElementById('login-password').value;
-  const users = JSON.parse(localStorage.getItem('hykaa_users') || '[]');
-  const found = users.find(u => u.email === email && u.password === pass);
-  if (found) {
-    user = found;
+
+  try {
+    const data = await api('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password: pass }),
+    });
+    user = { _id: data._id, name: data.name, email: data.email };
     localStorage.setItem('hykaa_user', JSON.stringify(user));
+    localStorage.setItem('hykaa_token', data.token);
     closeModal('auth');
     updateAuthBtn();
     toast(`Welcome back, ${user.name}! 👋`);
-  } else {
-    toast('Invalid credentials. Please try again.', 'error');
+    // Sync cart & wishlist from server
+    syncCartFromServer();
+    syncWishlistFromServer();
+  } catch (err) {
+    toast(err.message || 'Invalid credentials. Please try again.', 'error');
   }
 });
 
-document.getElementById('signup-form')?.addEventListener('submit', (e) => {
+document.getElementById('signup-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const name     = document.getElementById('signup-name').value;
   const email    = document.getElementById('signup-email').value;
   const password = document.getElementById('signup-password').value;
-  const users    = JSON.parse(localStorage.getItem('hykaa_users') || '[]');
-  if (users.find(u => u.email === email)) { toast('Email already registered.', 'error'); return; }
-  const newUser = { name, email, password };
-  users.push(newUser);
-  localStorage.setItem('hykaa_users', JSON.stringify(users));
-  user = newUser;
-  localStorage.setItem('hykaa_user', JSON.stringify(user));
-  closeModal('auth');
-  updateAuthBtn();
-  toast(`Account created! Welcome, ${name} 🎉`);
+
+  try {
+    const data = await api('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, password }),
+    });
+    user = { _id: data._id, name: data.name, email: data.email };
+    localStorage.setItem('hykaa_user', JSON.stringify(user));
+    localStorage.setItem('hykaa_token', data.token);
+    closeModal('auth');
+    updateAuthBtn();
+    toast(`Account created! Welcome, ${name} 🎉`);
+  } catch (err) {
+    toast(err.message || 'Registration failed.', 'error');
+  }
 });
 
 // Auth tab switching
@@ -414,19 +535,23 @@ function renderCheckout() {
   if (totalEl)    totalEl.textContent    = `$${total.toFixed(2)}`;
 }
 
-// Coupon code
-document.getElementById('apply-coupon-btn')?.addEventListener('click', () => {
+// Coupon code — validate via API
+document.getElementById('apply-coupon-btn')?.addEventListener('click', async () => {
   const code = (document.getElementById('coupon-input')?.value || '').trim().toUpperCase();
   if (!code) { toast('Please enter a promo code.', 'error'); return; }
   if (appliedCoupon === code) { toast('Coupon already applied!', 'info'); return; }
-  const discount = COUPONS[code];
-  if (discount) {
-    appliedCoupon  = code;
-    couponDiscount = discount;
-    toast(`🎉 Coupon applied! ${Math.round(discount * 100)}% off your order.`);
+
+  try {
+    const data = await api('/coupons/validate', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+    appliedCoupon  = data.code;
+    couponDiscount = data.discount;
+    toast(`🎉 Coupon applied! ${data.percentOff}% off your order.`);
     renderCheckout();
-  } else {
-    toast('Invalid promo code.', 'error');
+  } catch (err) {
+    toast(err.message || 'Invalid promo code.', 'error');
   }
 });
 
@@ -448,25 +573,54 @@ document.getElementById('card-expiry')?.addEventListener('input', (e) => {
   e.target.value = v.slice(0, 5);
 });
 
-document.getElementById('checkout-form')?.addEventListener('submit', (e) => {
+document.getElementById('checkout-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = document.getElementById('place-order-btn');
   if (btn) { btn.textContent = 'Processing...'; btn.disabled = true; }
-  setTimeout(() => {
-    const orderId = 'HYK' + Date.now().toString().slice(-8);
-    const orderIdEl = document.getElementById('order-id');
-    if (orderIdEl) orderIdEl.textContent = `Order ID: ${orderId}`;
 
-    // Save order to localStorage
-    const orders = JSON.parse(localStorage.getItem('hykaa_orders') || '[]');
-    orders.push({
-      id: orderId,
-      items: [...cart],
-      total: (cartTotal() * (1 - couponDiscount)).toFixed(2),
-      date: new Date().toLocaleDateString(),
-      coupon: appliedCoupon
-    });
-    localStorage.setItem('hykaa_orders', JSON.stringify(orders));
+  const isLoggedIn = !!localStorage.getItem('hykaa_token');
+
+  setTimeout(async () => {
+    if (isLoggedIn) {
+      try {
+        const order = await api('/orders', {
+          method: 'POST',
+          body: JSON.stringify({
+            items: cart,
+            couponCode: appliedCoupon,
+            paymentMethod: document.querySelector('[name="payment"]:checked')?.value || 'cod',
+            shippingAddress: {
+              fullName: document.getElementById('checkout-name')?.value,
+              address: document.getElementById('checkout-address')?.value,
+              city: document.getElementById('checkout-city')?.value,
+              zip: document.getElementById('checkout-zip')?.value,
+              phone: document.getElementById('checkout-phone')?.value,
+            },
+          }),
+        });
+        const orderIdEl = document.getElementById('order-id');
+        if (orderIdEl) orderIdEl.textContent = `Order ID: ${order._id.slice(-8).toUpperCase()}`;
+      } catch (err) {
+        toast(err.message, 'error');
+        if (btn) { btn.textContent = 'Place Order'; btn.disabled = false; }
+        return;
+      }
+    } else {
+      const orderId = 'HYK' + Date.now().toString().slice(-8);
+      const orderIdEl = document.getElementById('order-id');
+      if (orderIdEl) orderIdEl.textContent = `Order ID: ${orderId}`;
+
+      // Save order to localStorage for guests
+      const orders = JSON.parse(localStorage.getItem('hykaa_orders') || '[]');
+      orders.push({
+        id: orderId,
+        items: [...cart],
+        total: (cartTotal() * (1 - couponDiscount)).toFixed(2),
+        date: new Date().toLocaleDateString(),
+        coupon: appliedCoupon,
+      });
+      localStorage.setItem('hykaa_orders', JSON.stringify(orders));
+    }
 
     cart = []; appliedCoupon = null; couponDiscount = 0;
     save(); updateCartUI(); renderCartDrawer();
@@ -477,29 +631,43 @@ document.getElementById('checkout-form')?.addEventListener('submit', (e) => {
 });
 
 /* ============================================================
-   SEARCH
+   SEARCH — uses API when available
    ============================================================ */
 const searchInput   = document.getElementById('search-input');
 const searchResults = document.getElementById('search-results');
 
+let searchTimeout = null;
 searchInput?.addEventListener('input', () => {
   const q = searchInput.value.trim().toLowerCase();
   if (!q) { searchResults.innerHTML = ''; searchResults.classList.remove('active'); return; }
-  const matches = PRODUCTS.filter(p => p.name.toLowerCase().includes(q) || p.category.includes(q));
-  if (matches.length === 0) {
-    searchResults.innerHTML = `<p class="no-results">No products found for "${q}"</p>`;
-  } else {
-    searchResults.innerHTML = matches.slice(0, 6).map(p => `
-      <div class="search-item" onclick="openQuickView(${p.id}); searchResults.classList.remove('active'); searchInput.value=''">
-        <img src="${p.img}" alt="${p.name}">
-        <div>
-          <p>${p.name}</p>
-          <span>$${p.price.toFixed(2)}</span>
+
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(async () => {
+    let matches;
+    try {
+      matches = await api(`/products/search?q=${encodeURIComponent(q)}`);
+    } catch {
+      // Fallback to local search
+      matches = PRODUCTS.filter(p => p.name.toLowerCase().includes(q) || p.category.includes(q));
+    }
+
+    if (matches.length === 0) {
+      searchResults.innerHTML = `<p class="no-results">No products found for "${q}"</p>`;
+    } else {
+      searchResults.innerHTML = matches.slice(0, 6).map(p => {
+        const pid = p._id || p.id;
+        return `
+        <div class="search-item" onclick="openQuickView('${pid}'); searchResults.classList.remove('active'); searchInput.value=''">
+          <img src="${p.img}" alt="${p.name}">
+          <div>
+            <p>${p.name}</p>
+            <span>$${p.price.toFixed(2)}</span>
+          </div>
         </div>
-      </div>
-    `).join('');
-  }
-  searchResults.classList.add('active');
+      `;}).join('');
+    }
+    searchResults.classList.add('active');
+  }, 300); // debounce 300ms
 });
 
 document.addEventListener('click', (e) => {
@@ -534,19 +702,21 @@ function startCountdown() {
 }
 
 /* ============================================================
-   NEWSLETTER
+   NEWSLETTER — uses API
    ============================================================ */
-document.getElementById('newsletter-form')?.addEventListener('submit', (e) => {
+document.getElementById('newsletter-form')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const email = document.getElementById('newsletter-email')?.value;
   if (!email) return;
-  const subscribers = JSON.parse(localStorage.getItem('hykaa_newsletter') || '[]');
-  if (subscribers.includes(email)) {
-    toast('You are already subscribed!', 'info');
-  } else {
-    subscribers.push(email);
-    localStorage.setItem('hykaa_newsletter', JSON.stringify(subscribers));
-    toast('Thank you for subscribing! 🎉');
+
+  try {
+    const data = await api('/newsletter', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    toast(data.message || 'Thank you for subscribing! 🎉');
+  } catch (err) {
+    toast(err.message || 'Subscription failed.', 'error');
   }
   document.getElementById('newsletter-email').value = '';
 });
@@ -568,7 +738,19 @@ document.getElementById('wishlist-overlay')?.addEventListener('click', () => clo
 document.getElementById('auth-btn')?.addEventListener('click', () => {
   if (user) {
     if (confirm(`Logged in as ${user.name}. Sign out?`)) {
-      user = null; localStorage.removeItem('hykaa_user'); updateAuthBtn(); toast('Signed out.');
+      user = null;
+      localStorage.removeItem('hykaa_user');
+      localStorage.removeItem('hykaa_token');
+      // Reset to local-only state
+      cart = [];
+      wishlist = [];
+      save();
+      updateAuthBtn();
+      updateCartUI();
+      renderCartDrawer();
+      renderWishlistDrawer();
+      updateWishlistButtons();
+      toast('Signed out.');
     }
   } else { openModal('auth'); }
 });
@@ -598,8 +780,11 @@ document.getElementById('success-overlay')?.addEventListener('click', () => clos
 document.querySelectorAll('.section.offer .btn-primary').forEach(btn => {
   btn.addEventListener('click', (e) => {
     e.preventDefault();
-    addToCart(1); // Mountain Pine Bath Oil → mapped to product 1 (Facial Cleanser)
-    toast('Offer product added to cart! 🎉');
+    const firstProduct = PRODUCTS[0];
+    if (firstProduct) {
+      addToCart(firstProduct._id || firstProduct.id);
+      toast('Offer product added to cart! 🎉');
+    }
   });
 });
 
@@ -622,9 +807,17 @@ document.addEventListener('keydown', (e) => {
 /* ============================================================
    INIT
    ============================================================ */
-renderProductCards('all');
-initFilterTabs();
-updateCartUI();
-updateWishlistButtons();
-updateAuthBtn();
-startCountdown();
+async function init() {
+  await loadProducts();
+  updateCartUI();
+  updateAuthBtn();
+  startCountdown();
+
+  // If logged in, sync from server
+  if (localStorage.getItem('hykaa_token')) {
+    syncCartFromServer();
+    syncWishlistFromServer();
+  }
+}
+
+init();

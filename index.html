@@ -16,6 +16,7 @@
     - custom css link
   -->
   <link rel="stylesheet" href="./assets/css/style.css">
+  <link rel="stylesheet" href="./assets/css/app.css">
 
   <!-- 
     - google font link
@@ -58,7 +59,8 @@
         </button>
 
         <div class="input-wrapper">
-          <input type="search" name="search" placeholder="Search product" class="search-field">
+          <input type="search" name="search" id="search-input" placeholder="Search product" class="search-field">
+          <div id="search-results" class="search-results"></div>
 
           <button class="search-submit" aria-label="search">
             <ion-icon name="search-outline" aria-hidden="true"></ion-icon>
@@ -71,22 +73,22 @@
 
         <div class="header-actions">
 
-          <button class="header-action-btn" aria-label="user">
-            <ion-icon name="person-outline" aria-hidden="true" aria-hidden="true"></ion-icon>
+          <button class="header-action-btn" id="auth-btn" aria-label="user">
+            <ion-icon name="person-outline" aria-hidden="true"></ion-icon>
           </button>
 
-          <button class="header-action-btn" aria-label="favourite item">
-            <ion-icon name="star-outline" aria-hidden="true" aria-hidden="true"></ion-icon>
+          <button class="header-action-btn" id="wishlist-btn" aria-label="favourite item">
+            <ion-icon name="star-outline" aria-hidden="true"></ion-icon>
 
-            <span class="btn-badge">0</span>
+            <span class="btn-badge" id="wishlist-count">0</span>
           </button>
 
-          <button class="header-action-btn" aria-label="cart item">
-            <data class="btn-text" value="0">$0.00</data>
+          <button class="header-action-btn" id="cart-btn" aria-label="cart item">
+            <data class="btn-text" id="cart-total" value="0">$0.00</data>
 
-            <ion-icon name="bag-handle-outline" aria-hidden="true" aria-hidden="true"></ion-icon>
+            <ion-icon name="bag-handle-outline" aria-hidden="true"></ion-icon>
 
-            <span class="btn-badge">0</span>
+            <span class="btn-badge" id="cart-count">0</span>
           </button>
 
         </div>
@@ -184,7 +186,8 @@
       -->
 
       <section class="section hero" id="home" aria-label="hero" data-section>
-        <div class="container">`r`n`r`n          <ul class="has-scrollbar">
+        <div class="container">
+          <ul class="has-scrollbar">
 
             <li class="scrollbar-item">
               <div class="hero-card has-bg-image" style="background-image: url('./assets/images/hero-banner-1.jpg')">
@@ -1396,8 +1399,8 @@
           </p>
 
           <form id="newsletter-form" class="newsletter-form">
-            <input type="email" name="email_address" id="newsletter-email" placeholder="Enter your email address" required
-              class="email-field">
+            <input type="email" name="email_address" id="newsletter-email" placeholder="Enter your email address"
+              required class="email-field">
 
             <button type="submit" class="btn btn-primary">Subscribe</button>
           </form>
@@ -1509,7 +1512,8 @@
         </div>
         <div class="form-group">
           <label>Password</label>
-          <input type="password" id="login-password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" required>
+          <input type="password" id="login-password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
+            required>
         </div>
         <button type="submit" class="btn btn-primary w-full">Sign In</button>
       </form>
@@ -1529,7 +1533,8 @@
         </div>
         <div class="form-group">
           <label>Password</label>
-          <input type="password" id="signup-password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" required>
+          <input type="password" id="signup-password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
+            required>
         </div>
         <button type="submit" class="btn btn-primary w-full">Create Account</button>
       </form>
@@ -1554,26 +1559,38 @@
         <form id="checkout-form">
           <h3>Shipping Information</h3>
           <div class="form-row">
-            <div class="form-group"><label>First Name</label><input type="text" id="ship-fname" placeholder="Jane" required></div>
-            <div class="form-group"><label>Last Name</label><input type="text" id="ship-lname" placeholder="Doe" required></div>
+            <div class="form-group"><label>First Name</label><input type="text" id="ship-fname" placeholder="Jane"
+                required></div>
+            <div class="form-group"><label>Last Name</label><input type="text" id="ship-lname" placeholder="Doe"
+                required></div>
           </div>
-          <div class="form-group"><label>Email</label><input type="email" id="ship-email" placeholder="you@example.com" required></div>
-          <div class="form-group"><label>Address</label><input type="text" id="ship-address" placeholder="123 Main St" required></div>
+          <div class="form-group"><label>Email</label><input type="email" id="ship-email" placeholder="you@example.com"
+              required></div>
+          <div class="form-group"><label>Address</label><input type="text" id="ship-address" placeholder="123 Main St"
+              required></div>
           <div class="form-row">
-            <div class="form-group"><label>City</label><input type="text" id="ship-city" placeholder="Mumbai" required></div>
-            <div class="form-group"><label>PIN Code</label><input type="text" id="ship-pin" placeholder="400001" required></div>
+            <div class="form-group"><label>City</label><input type="text" id="ship-city" placeholder="Mumbai" required>
+            </div>
+            <div class="form-group"><label>PIN Code</label><input type="text" id="ship-pin" placeholder="400001"
+                required></div>
           </div>
           <h3>Payment</h3>
           <div class="payment-methods">
-            <label class="payment-option"><input type="radio" name="payment" value="card" checked><span>Credit / Debit Card</span><ion-icon name="card-outline"></ion-icon></label>
-            <label class="payment-option"><input type="radio" name="payment" value="upi"><span>UPI</span><ion-icon name="phone-portrait-outline"></ion-icon></label>
-            <label class="payment-option"><input type="radio" name="payment" value="cod"><span>Cash on Delivery</span><ion-icon name="cash-outline"></ion-icon></label>
+            <label class="payment-option"><input type="radio" name="payment" value="card" checked><span>Credit / Debit
+                Card</span><ion-icon name="card-outline"></ion-icon></label>
+            <label class="payment-option"><input type="radio" name="payment" value="upi"><span>UPI</span><ion-icon
+                name="phone-portrait-outline"></ion-icon></label>
+            <label class="payment-option"><input type="radio" name="payment" value="cod"><span>Cash on
+                Delivery</span><ion-icon name="cash-outline"></ion-icon></label>
           </div>
           <div id="card-fields">
-            <div class="form-group"><label>Card Number</label><input type="text" id="card-number" placeholder="1234 5678 9012 3456" maxlength="19"></div>
+            <div class="form-group"><label>Card Number</label><input type="text" id="card-number"
+                placeholder="1234 5678 9012 3456" maxlength="19"></div>
             <div class="form-row">
-              <div class="form-group"><label>Expiry</label><input type="text" id="card-expiry" placeholder="MM/YY" maxlength="5"></div>
-              <div class="form-group"><label>CVV</label><input type="text" id="card-cvv" placeholder="000" maxlength="3"></div>
+              <div class="form-group"><label>Expiry</label><input type="text" id="card-expiry" placeholder="MM/YY"
+                  maxlength="5"></div>
+              <div class="form-group"><label>CVV</label><input type="text" id="card-cvv" placeholder="000"
+                  maxlength="3"></div>
             </div>
           </div>
           <div class="coupon-row">
