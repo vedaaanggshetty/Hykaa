@@ -35,10 +35,14 @@ app.get('{*path}', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'index.html'));
 });
 
-// Start server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`\n🚀 Hykaa server running on http://localhost:${PORT}`);
-  console.log(`📦 API available at  http://localhost:${PORT}/api`);
-  console.log(`🌐 Frontend at       http://localhost:${PORT}\n`);
-});
+// Start server (only if running locally / not on Vercel)
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`\n🚀 Hykaa server running on http://localhost:${PORT}`);
+    console.log(`📦 API available at  http://localhost:${PORT}/api`);
+    console.log(`🌐 Frontend at       http://localhost:${PORT}\n`);
+  });
+}
+
+module.exports = app;
