@@ -40,12 +40,28 @@ const save = () => {
 async function loadProducts() {
   try {
     PRODUCTS = await api('/products');
+  } catch (err) {
+    console.warn('Failed to load products from API, falling back to static product catalog for demo purposes:', err.message);
+    PRODUCTS = [
+      { id: '1', name: 'Facial Cleanser',               price: 29.00, oldPrice: 39.00, img: './assets/images/product-01.jpg', badge: '-26%', rating: 5, reviews: 5170, category: 'cleanser' },
+      { id: '2', name: 'Bio-shroom Rejuvenating Serum', price: 29.00, oldPrice: null,  img: './assets/images/product-02.jpg', badge: null,   rating: 5, reviews: 5170, category: 'serum' },
+      { id: '3', name: 'Coffee Bean Caffeine Eye Cream',price: 29.00, oldPrice: null,  img: './assets/images/product-03.jpg', badge: null,   rating: 5, reviews: 5170, category: 'cream' },
+      { id: '4', name: 'Facial Cleanser Pro',           price: 29.00, oldPrice: null,  img: './assets/images/product-04.jpg', badge: null,   rating: 5, reviews: 5170, category: 'cleanser' },
+      { id: '5', name: 'Coffee Bean Eye Cream',         price: 29.00, oldPrice: 39.00, img: './assets/images/product-05.jpg', badge: '-26%', rating: 5, reviews: 5170, category: 'cream' },
+      { id: '6', name: 'Facial Cleanser Lite',          price: 29.00, oldPrice: null,  img: './assets/images/product-06.jpg', badge: null,   rating: 5, reviews: 5170, category: 'cleanser' },
+      { id: '7', name: 'Vitamin C Bright Serum',        price: 19.00, oldPrice: 29.00, img: './assets/images/product-07.jpg', badge: '-34%', rating: 5, reviews: 5170, category: 'serum' },
+      { id: '8', name: 'Bio-shroom Renew Serum',        price: 19.00, oldPrice: null,  img: './assets/images/product-08.jpg', badge: null,   rating: 5, reviews: 5170, category: 'serum' },
+      { id: '9', name: 'Rose Glow Moisturizer',         price: 22.00, oldPrice: null,  img: './assets/images/product-09.jpg', badge: null,   rating: 5, reviews: 3200, category: 'moisturizer' },
+      { id: '10', name: 'Night Repair Cream',            price: 24.00, oldPrice: null,  img: './assets/images/product-10.jpg', badge: null,   rating: 5, reviews: 2800, category: 'cream' },
+      { id: '11', name: 'Hydra-Boost Toner',             price: 18.00, oldPrice: null,  img: './assets/images/product-11.jpg', badge: null,   rating: 5, reviews: 1900, category: 'toner' },
+      { id: '15', name: 'Soothing Aloe Gel',             price: 15.00, oldPrice: null,  img: './assets/images/product-15.jpg', badge: null,   rating: 5, reviews: 1500, category: 'gel' },
+      { id: '16', name: 'SPF 50 Sunscreen',              price: 21.00, oldPrice: null,  img: './assets/images/product-16.jpg', badge: null,   rating: 5, reviews: 4100, category: 'sunscreen' },
+      { id: '17', name: 'Exfoliating Scrub',             price: 17.00, oldPrice: 22.00, img: './assets/images/product-17.jpg', badge: '-22%', rating: 5, reviews: 2300, category: 'scrub' }
+    ];
+  } finally {
     renderProductCards('all');
     initFilterTabs();
     updateWishlistButtons();
-  } catch (err) {
-    console.error('Failed to load products from API, using empty list:', err.message);
-    PRODUCTS = [];
   }
 }
 
@@ -551,7 +567,20 @@ document.getElementById('apply-coupon-btn')?.addEventListener('click', async () 
     toast(`🎉 Coupon applied! ${data.percentOff}% off your order.`);
     renderCheckout();
   } catch (err) {
-    toast(err.message || 'Invalid promo code.', 'error');
+    // Demo fallback for static hosting
+    const localCoupons = {
+      'HYKAA10': 0.10,
+      'SKINCARE20': 0.20,
+      'WELCOME15': 0.15
+    };
+    if (localCoupons[code]) {
+      appliedCoupon = code;
+      couponDiscount = localCoupons[code];
+      toast(`🎉 Coupon applied! ${couponDiscount * 100}% off your order.`);
+      renderCheckout();
+    } else {
+      toast(err.message || 'Invalid promo code.', 'error');
+    }
   }
 });
 
